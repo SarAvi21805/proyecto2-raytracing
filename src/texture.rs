@@ -2,14 +2,16 @@ use crate::math::Vec3;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TextureKind {
-    Grass,
-    Dirt,
-    Stone,
-    Sand,
+    ParisStone,
+    Brick,
+    RoofTile,
     Glass,
-    Lava,
-    Water,
-    Wood,
+    Ladybug,
+    CatNoir,
+    Akuma,
+    GoldLight,
+    WetStreet,
+    Metal,
 }
 
 impl TextureKind {
@@ -17,42 +19,69 @@ impl TextureKind {
         let u = fract(u);
         let v = fract(v);
         match self {
-            Self::Grass => {
-                let blades = hash2((u * 12.0) as i32, (v * 12.0) as i32);
-                Vec3::new(0.24, 0.68, 0.18) * (0.88 + 0.15 * blades)
+            Self::ParisStone => {
+                let variation = smooth_noise(u * 5.0, v * 5.0);
+                let seams = mortar_mask(u * 3.0, v * 3.0, 0.055);
+                Vec3::new(0.82, 0.77, 0.68) * (0.92 + variation * 0.10)
+                    + Vec3::new(0.12, 0.11, 0.10) * seams
             }
-            Self::Dirt => {
-                let grains = hash2((u * 32.0) as i32, (v * 32.0) as i32);
-                Vec3::new(0.50, 0.29, 0.13) * (0.76 + 0.32 * grains)
+            Self::Brick => {
+                let row = (v * 5.0).floor() as i32;
+                let shifted_u = u * 4.0 + if row % 2 == 0 { 0.0 } else { 0.5 };
+                let mortar = mortar_mask(shifted_u, v * 5.0, 0.075);
+                let variation = smooth_noise(shifted_u * 1.4, v * 6.0);
+                let brick = Vec3::new(0.58, 0.22, 0.15) * (0.88 + 0.16 * variation);
+                brick.lerp(Vec3::new(0.60, 0.55, 0.50), mortar)
             }
-            Self::Stone => {
-                let veins = ((u * 19.0 + (v * 13.0).sin() * 2.0).sin() * 0.5 + 0.5)
-                    .powf(5.0);
-                let grain = hash2((u * 40.0) as i32, (v * 40.0) as i32);
-                Vec3::new(0.47, 0.50, 0.54) * (0.70 + grain * 0.20)
-                    + Vec3::new(0.19, 0.22, 0.25) * veins
-            }
-            Self::Sand => {
-                let ripples = ((u * 42.0 + (v * 9.0).sin()).sin() * 0.5 + 0.5) * 0.16;
-                Vec3::new(0.88, 0.75, 0.43) * (0.88 + ripples)
+            Self::RoofTile => {
+                let rows = v * 5.0;
+                let columns = u * 6.0 + if rows.floor() as i32 % 2 == 0 { 0.0 } else { 0.5 };
+                let seam = mortar_mask(columns, rows, 0.065);
+                let wave = ((u * std::f32::consts::TAU * 3.0).sin() * 0.5 + 0.5) * 0.06;
+                (Vec3::new(0.20, 0.25, 0.34) + Vec3::ONE * wave)
+                    .lerp(Vec3::new(0.06, 0.08, 0.12), seam)
             }
             Self::Glass => {
-                let border = edge_mask(u, v, 0.075);
-                Vec3::new(0.55, 0.88, 0.94).lerp(Vec3::new(0.90, 1.0, 1.0), border)
+                let frame = edge_mask(u, v, 0.065);
+                Vec3::new(0.66, 0.86, 0.96).lerp(Vec3::new(0.95, 1.0, 1.0), frame)
             }
-            Self::Lava => {
-                let flow = ((u * 16.0 + (point.z * 0.8).sin()).sin()
-                    * (v * 18.0 + (point.x * 0.7).cos()).sin())
-                    .abs();
-                Vec3::new(1.0, 0.10, 0.01).lerp(Vec3::new(1.0, 0.82, 0.08), flow)
+            Self::Ladybug => {
+                let cell_u = fract(u * 2.0);
+                let cell_v = fract(v * 2.0);
+                let dx = cell_u - 0.5;
+                let dy = cell_v - 0.5;
+                let spot = smoothstep(0.16, 0.12, (dx * dx + dy * dy).sqrt());
+                let seam = smoothstep(0.025, 0.055, (u - 0.5).abs());
+                let red = Vec3::new(0.88, 0.025, 0.045) * (0.94 + seam * 0.06);
+                red.lerp(Vec3::new(0.012, 0.014, 0.020), spot)
             }
-            Self::Water => {
-                let wave = ((u * 24.0 + point.z).sin() + (v * 21.0 + point.x).cos()) * 0.05;
-                Vec3::new(0.08, 0.38, 0.65) + Vec3::new(wave, wave, wave * 1.5)
+            Self::CatNoir => {
+                let satin = ((u * 7.0 + v * 2.0).sin() * 0.5 + 0.5) * 0.045;
+                let green_line = smoothstep(0.035, 0.0, (v - 0.50).abs());
+                (Vec3::new(0.018, 0.022, 0.028) + Vec3::ONE * satin)
+                    .lerp(Vec3::new(0.18, 0.95, 0.28), green_line * 0.42)
             }
-            Self::Wood => {
-                let rings = ((u * 13.0 + (v * 4.0).sin()).sin() * 0.5 + 0.5) * 0.28;
-                Vec3::new(0.42, 0.20, 0.07) + Vec3::new(0.25, 0.12, 0.03) * rings
+            Self::Akuma => {
+                let swirl = ((u * 12.0 + point.y * 0.55).sin()
+                    * (v * 10.0 - point.x * 0.35).cos())
+                    * 0.5
+                    + 0.5;
+                Vec3::new(0.28, 0.025, 0.50)
+                    .lerp(Vec3::new(0.92, 0.34, 1.0), swirl)
+            }
+            Self::GoldLight => {
+                let glow = ((u * std::f32::consts::TAU).sin().abs() * 0.18) + 0.82;
+                Vec3::new(1.0, 0.54, 0.08) * glow
+            }
+            Self::WetStreet => {
+                let lane = smoothstep(0.025, 0.0, (fract(u * 2.0) - 0.5).abs());
+                let variation = smooth_noise(u * 4.0 + point.x * 0.08, v * 4.0 + point.z * 0.08);
+                (Vec3::new(0.075, 0.09, 0.13) * (0.94 + variation * 0.10))
+                    .lerp(Vec3::new(0.58, 0.44, 0.18), lane * 0.38)
+            }
+            Self::Metal => {
+                let brushed = ((v * 22.0 + point.y * 0.35).sin() * 0.5 + 0.5) * 0.08;
+                Vec3::new(0.31, 0.25, 0.21) + Vec3::ONE * brushed
             }
         }
     }
@@ -62,7 +91,7 @@ impl TextureKind {
             return Vec3::new(0.0, 0.0, 1.0);
         }
 
-        let e = 0.01;
+        let e = 0.0125;
         let h = self.height(u, v);
         let hx = self.height(u + e, v);
         let hy = self.height(u, v + e);
@@ -71,12 +100,33 @@ impl TextureKind {
 
     fn height(self, u: f32, v: f32) -> f32 {
         match self {
-            Self::Stone => {
-                let cells = hash2((fract(u) * 28.0) as i32, (fract(v) * 28.0) as i32);
-                cells * 0.7 + ((u * 18.0).sin() * (v * 17.0).cos()).abs() * 0.3
+            Self::ParisStone => {
+                ((u * std::f32::consts::TAU * 3.0).sin()
+                    * (v * std::f32::consts::TAU * 3.0).sin())
+                    * 0.18
             }
-            Self::Water => ((u * 21.0).sin() + (v * 23.0).cos()) * 0.5,
-            Self::Grass => hash2((fract(u) * 40.0) as i32, (fract(v) * 40.0) as i32),
+            Self::Brick => {
+                ((u * std::f32::consts::TAU * 4.0).sin().abs()
+                    * (v * std::f32::consts::TAU * 5.0).sin().abs())
+                    * 0.25
+            }
+            Self::RoofTile => {
+                (u * std::f32::consts::TAU * 6.0).sin() * 0.22
+                    + (v * std::f32::consts::TAU * 5.0).sin() * 0.08
+            }
+            Self::WetStreet => {
+                (u * std::f32::consts::TAU * 3.0).sin()
+                    * (v * std::f32::consts::TAU * 2.0).cos()
+                    * 0.08
+            }
+            Self::Ladybug => {
+                (u * std::f32::consts::TAU * 2.0).sin()
+                    * (v * std::f32::consts::TAU * 2.0).sin()
+                    * 0.04
+            }
+            Self::CatNoir | Self::Akuma | Self::Metal => {
+                (u * std::f32::consts::TAU * 4.0).sin() * 0.03
+            }
             _ => 0.0,
         }
     }
@@ -87,11 +137,26 @@ fn fract(value: f32) -> f32 {
 }
 
 fn edge_mask(u: f32, v: f32, width: f32) -> f32 {
-    if u < width || v < width || u > 1.0 - width || v > 1.0 - width {
-        1.0
-    } else {
-        0.0
-    }
+    let distance = u.min(v).min(1.0 - u).min(1.0 - v);
+    smoothstep(width, width * 0.45, distance)
+}
+
+fn mortar_mask(u: f32, v: f32, width: f32) -> f32 {
+    let du = fract(u).min(1.0 - fract(u));
+    let dv = fract(v).min(1.0 - fract(v));
+    smoothstep(width, width * 0.55, du.min(dv))
+}
+
+fn smooth_noise(x: f32, y: f32) -> f32 {
+    let x0 = x.floor() as i32;
+    let y0 = y.floor() as i32;
+    let tx = smooth_curve(fract(x));
+    let ty = smooth_curve(fract(y));
+    let a = hash2(x0, y0);
+    let b = hash2(x0 + 1, y0);
+    let c = hash2(x0, y0 + 1);
+    let d = hash2(x0 + 1, y0 + 1);
+    lerp(lerp(a, b, tx), lerp(c, d, tx), ty)
 }
 
 fn hash2(x: i32, y: i32) -> f32 {
@@ -103,3 +168,44 @@ fn hash2(x: i32, y: i32) -> f32 {
     (value & 0x00FF_FFFF) as f32 / 0x00FF_FFFF as f32
 }
 
+fn smooth_curve(t: f32) -> f32 {
+    t * t * (3.0 - 2.0 * t)
+}
+
+fn smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
+    let denominator = edge1 - edge0;
+    if denominator.abs() <= f32::EPSILON {
+        return if value < edge0 { 0.0 } else { 1.0 };
+    }
+    let t = ((value - edge0) / denominator).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a * (1.0 - t) + b * t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_procedural_textures_return_finite_colors() {
+        let textures = [
+            TextureKind::ParisStone,
+            TextureKind::Brick,
+            TextureKind::RoofTile,
+            TextureKind::Glass,
+            TextureKind::Ladybug,
+            TextureKind::CatNoir,
+            TextureKind::Akuma,
+            TextureKind::GoldLight,
+            TextureKind::WetStreet,
+            TextureKind::Metal,
+        ];
+        for texture in textures {
+            let color = texture.sample(0.37, 0.61, Vec3::new(3.0, 8.0, 5.0));
+            assert!(color.x.is_finite() && color.y.is_finite() && color.z.is_finite());
+        }
+    }
+}

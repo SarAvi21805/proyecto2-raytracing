@@ -77,7 +77,7 @@ impl Renderer {
         let normal = mapped_normal(hit, material.normal_strength, material.texture);
         let view_direction = -ray.direction;
 
-        let mut direct = surface_color * 0.10;
+        let mut direct = surface_color * 0.055;
         for light in &scene.lights {
             let to_light = light.position - hit.point;
             let distance = to_light.length();
@@ -215,28 +215,38 @@ pub fn refract(incident: Vec3, normal: Vec3, eta_ratio: f32) -> Option<Vec3> {
 }
 
 fn skybox(direction: Vec3) -> Vec3 {
-    let t = (direction.y * 0.5 + 0.5).clamp(0.0, 1.0);
-    let horizon = Vec3::new(0.82, 0.62, 0.48);
-    let zenith = Vec3::new(0.08, 0.23, 0.52);
-    let ground = Vec3::new(0.05, 0.07, 0.09);
+    let horizon = Vec3::new(0.20, 0.12, 0.30);
+    let zenith = Vec3::new(0.012, 0.025, 0.11);
+    let ground = Vec3::new(0.025, 0.018, 0.045);
     let mut color = if direction.y >= 0.0 {
-        horizon.lerp(zenith, t.powf(0.65))
+        horizon.lerp(zenith, direction.y.clamp(0.0, 1.0).powf(0.52))
     } else {
-        horizon.lerp(ground, (-direction.y).min(1.0))
+        horizon.lerp(ground, (-direction.y).clamp(0.0, 1.0).powf(0.42))
     };
 
-    let sun_direction = Vec3::new(-0.35, 0.80, -0.28).normalized();
-    let sun = direction.dot(sun_direction).max(0.0).powf(420.0);
-    color += Vec3::new(1.0, 0.78, 0.46) * (sun * 8.0);
+    let moon_direction = Vec3::new(-0.42, 0.78, -0.30).normalized();
+    let moon_disc = direction.dot(moon_direction).max(0.0).powf(520.0);
+    let moon_halo = direction.dot(moon_direction).max(0.0).powf(32.0);
+    color += Vec3::new(0.72, 0.82, 1.0) * (moon_disc * 7.0 + moon_halo * 0.16);
+
+    for star_direction in [
+        Vec3::new(0.18, 0.91, -0.36),
+        Vec3::new(0.61, 0.73, 0.31),
+        Vec3::new(-0.70, 0.64, 0.18),
+        Vec3::new(0.04, 0.82, 0.57),
+        Vec3::new(-0.25, 0.94, 0.24),
+    ] {
+        let star = direction
+            .dot(star_direction.normalized())
+            .max(0.0)
+            .powf(1800.0);
+        color += Vec3::new(0.74, 0.82, 1.0) * star * 1.8;
+    }
     color
 }
 
 fn to_rgba8(color: Vec3) -> [u8; 4] {
-    let mapped = Vec3::new(
-        color.x / (1.0 + color.x),
-        color.y / (1.0 + color.y),
-        color.z / (1.0 + color.z),
-    );
+    let mapped = Vec3::new(aces(color.x), aces(color.y), aces(color.z));
     let gamma = Vec3::new(
         mapped.x.max(0.0).powf(1.0 / 2.2),
         mapped.y.max(0.0).powf(1.0 / 2.2),
@@ -249,6 +259,16 @@ fn to_rgba8(color: Vec3) -> [u8; 4] {
         (gamma.z * 255.0) as u8,
         255,
     ]
+}
+
+fn aces(value: f32) -> f32 {
+    let value = value.max(0.0);
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    ((value * (a * value + b)) / (value * (c * value + d) + e)).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
@@ -269,4 +289,3 @@ mod tests {
         assert!(refract(incident, Vec3::new(0.0, -1.0, 0.0), 1.5).is_none());
     }
 }
-

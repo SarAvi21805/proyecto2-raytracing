@@ -7,16 +7,16 @@ use proyecto2_raytracing::{
 use raylib::prelude::*;
 use std::time::Instant;
 
-const RENDER_WIDTH: usize = 320;
-const RENDER_HEIGHT: usize = 180;
-const WINDOW_SCALE: i32 = 3;
+const RENDER_WIDTH: usize = 480;
+const RENDER_HEIGHT: usize = 270;
+const WINDOW_SCALE: i32 = 2;
 
 fn main() {
     let window_width = RENDER_WIDTH as i32 * WINDOW_SCALE;
     let window_height = RENDER_HEIGHT as i32 * WINDOW_SCALE;
     let (mut rl, thread) = raylib::init()
         .size(window_width, window_height)
-        .title("Proyecto 2 - Raytracing CPU")
+        .title("Miraculous: Batalla sobre Paris - Raytracing CPU")
         .build();
     rl.set_target_fps(60);
 
@@ -33,7 +33,9 @@ fn main() {
     let renderer = Renderer::new(RENDER_WIDTH, RENDER_HEIGHT);
     let mut scene = Scene::diorama(2026);
     let mut seed = 2026_u32;
-    let mut camera = Camera::new(Vec3::new(12.0, 6.0, 12.0));
+    let mut camera = Camera::new(Vec3::new(16.0, 8.0, 15.0));
+    camera.distance = 42.0;
+    camera.pitch = 0.38;
     let mut dirty = true;
     let mut render_ms = 0_u128;
 
@@ -97,12 +99,19 @@ fn main() {
             0.0,
             Color::WHITE,
         );
-        d.draw_rectangle(8, 8, 440, 52, Color::new(0, 0, 0, 170));
+        d.draw_rectangle(8, 8, 620, 72, Color::new(8, 5, 22, 190));
         d.draw_text(
-            "Rotar: WASD/flechas | Zoom: rueda o Q/E | Nuevo terreno: R",
+            "MIRACULOUS: BATALLA SOBRE LOS TEJADOS DE PARIS",
             16,
             15,
+            18,
+            Color::new(240, 45, 70, 255),
+        );
+        d.draw_text(
+            "Rotar: WASD/flechas | Zoom: rueda o Q/E | Nueva ciudad: R",
             16,
+            37,
+            15,
             Color::RAYWHITE,
         );
         d.draw_text(
@@ -111,9 +120,9 @@ fn main() {
                 renderer.settings.threads, render_ms, seed
             ),
             16,
-            37,
-            16,
-            Color::GOLD,
+            57,
+            15,
+            Color::new(196, 150, 255, 255),
         );
     }
 }
