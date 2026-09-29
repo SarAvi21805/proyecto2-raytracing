@@ -1,5 +1,8 @@
 use crate::{
-    material::{DIRT, GLASS, GRASS, LAVA, SAND, STONE, WATER, WOOD},
+    material::{
+        AKUMA, BRICK, CAT_NOIR, GLASS, GOLD_LIGHT, LADYBUG, METAL, PARIS_STONE,
+        ROOFTOP, WET_STREET,
+    },
     math::Vec3,
     ray::Ray,
 };
@@ -267,76 +270,227 @@ fn next_boundary(origin: f32, direction: f32, cell: i32, step: i32) -> f32 {
 }
 
 pub fn generate_diorama(seed: u32) -> VoxelWorld {
-    const WIDTH: usize = 24;
-    const HEIGHT: usize = 16;
-    const DEPTH: usize = 24;
-    const WATER_LEVEL: i32 = 4;
+    const WIDTH: usize = 32;
+    const HEIGHT: usize = 24;
+    const DEPTH: usize = 32;
     let mut world = VoxelWorld::new(WIDTH, HEIGHT, DEPTH);
 
+    // Ciudad procedural de Paris. Las calles forman una cuadricula y cada lote
+    // recibe una altura determinista distinta a partir de la semilla.
     for x in 0..WIDTH as i32 {
         for z in 0..DEPTH as i32 {
-            let nx = x as f32 / WIDTH as f32;
-            let nz = z as f32 / DEPTH as f32;
-            let noise = fbm(nx * 5.0, nz * 5.0, seed);
-            let radial = 1.0
-                - (((nx - 0.5).powi(2) + (nz - 0.5).powi(2)).sqrt() * 0.72)
-                    .clamp(0.0, 0.45);
-            let top = (2.0 + noise * 5.2 + radial * 1.2).floor() as i32;
-
-            for y in 0..=top {
-                let material = if y < top - 2 {
-                    STONE
-                } else if y < top {
-                    DIRT
-                } else if top <= WATER_LEVEL {
-                    SAND
+            world.set(x, 0, z, Some(PARIS_STONE));
+            let street = x.rem_euclid(8) <= 1 || z.rem_euclid(8) <= 1;
+            if street {
+                world.set(x, 1, z, Some(WET_STREET));
+            } else {
+                let lot_x = x.div_euclid(8);
+                let lot_z = z.div_euclid(8);
+                let variation = fbm(lot_x as f32 * 0.83, lot_z as f32 * 0.83, seed);
+                let top = 3 + (variation * 4.8).floor() as i32;
+                let facade = if (lot_x + lot_z) % 2 == 0 {
+                    PARIS_STONE
                 } else {
-                    GRASS
+                    BRICK
                 };
-                world.set(x, y, z, Some(material));
-            }
-            for y in (top + 1)..=WATER_LEVEL {
-                world.set(x, y, z, Some(WATER));
-            }
-        }
-    }
-
-    // Poza de lava emisiva rodeada de piedra.
-    for x in 3..7 {
-        for z in 3..7 {
-            world.set(x, 6, z, Some(LAVA));
-            if x == 3 || x == 6 || z == 3 || z == 6 {
-                world.set(x, 6, z, Some(STONE));
+                for y in 1..top {
+                    world.set(x, y, z, Some(facade));
+                }
+                world.set(x, top, z, Some(ROOFTOP));
             }
         }
     }
 
-    // Torre de vidrio para que la refraccion sea evidente y tenga contexto.
-    for y in 7..13 {
-        for x in 16..20 {
-            for z in 15..19 {
-                let wall = x == 16 || x == 19 || z == 15 || z == 18;
-                if wall {
+    // Azotea principal de 16x16: el escenario de la batalla.
+    clear_box(&mut world, (8, 1, 7), (23, 23, 22));
+    for x in 8..=23 {
+        for z in 7..=22 {
+            for y in 1..6 {
+                let boundary = x == 8 || x == 23 || z == 7 || z == 22;
+                world.set(x, y, z, Some(if boundary { BRICK } else { PARIS_STONE }));
+            }
+            world.set(x, 6, z, Some(ROOFTOP));
+        }
+    }
+
+    // Parapeto de ladrillo; se dejan dos accesos para mejorar la silueta.
+    for x in 8..=23 {
+        if !(14..=17).contains(&x) {
+            world.set(x, 7, 7, Some(BRICK));
+            world.set(x, 7, 22, Some(BRICK));
+        }
+    }
+    for z in 7..=22 {
+        if !(13..=16).contains(&z) {
+            world.set(8, 7, z, Some(BRICK));
+            world.set(23, 7, z, Some(BRICK));
+        }
+    }
+
+    // Charcos sobre el tejado para hacer evidente la reflexion del cielo y luces.
+    for x in 9..=12 {
+        for z in 17..=20 {
+            world.set(x, 6, z, Some(WET_STREET));
+        }
+    }
+    for x in 19..=21 {
+        for z in 9..=11 {
+            world.set(x, 6, z, Some(WET_STREET));
+        }
+    }
+
+    // Claraboya de vidrio. El akuma que contiene permite ver la refraccion.
+    clear_box(&mut world, (14, 7, 12), (18, 12, 16));
+    for y in 7..=10 {
+        for x in 14..=18 {
+            for z in 12..=16 {
+                if x == 14 || x == 18 || z == 12 || z == 16 {
                     world.set(x, y, z, Some(GLASS));
                 }
             }
         }
     }
-    for x in 16..20 {
-        for z in 15..19 {
-            world.set(x, 13, z, Some(GLASS));
+    fill_box(&mut world, (14, 11, 12), (18, 11, 16), GLASS);
+
+    // Mariposa/akuma voxel: cuerpo central y alas dentro de la claraboya.
+    for y in 8..=10 {
+        world.set(16, y, 14, Some(AKUMA));
+    }
+    for &(x, y, z) in &[
+        (15, 9, 14),
+        (17, 9, 14),
+        (14, 10, 14),
+        (18, 10, 14),
+        (15, 8, 14),
+        (17, 8, 14),
+    ] {
+        world.set(x, y, z, Some(AKUMA));
+    }
+
+    // Ladybug voxel, con el material rojo de lunares.
+    for &(x, y, z) in &[
+        (10, 7, 12),
+        (12, 7, 12),
+        (10, 8, 12),
+        (12, 8, 12),
+        (10, 9, 12),
+        (11, 9, 12),
+        (12, 9, 12),
+        (10, 10, 12),
+        (11, 10, 12),
+        (12, 10, 12),
+        (9, 10, 12),
+        (13, 10, 12),
+        (10, 11, 12),
+        (11, 11, 12),
+        (12, 11, 12),
+    ] {
+        world.set(x, y, z, Some(LADYBUG));
+    }
+
+    // Yo-yo de Ladybug sobre el techo: disco rojo con centro negro.
+    for x in 10..=12 {
+        for z in 15..=17 {
+            world.set(x, 7, z, Some(LADYBUG));
         }
     }
-    world.set(17, 8, 16, Some(LAVA));
-    world.set(18, 8, 17, Some(LAVA));
+    world.set(11, 7, 16, Some(CAT_NOIR));
 
-    // Puente de madera que cruza la parte central del diorama.
-    for x in 7..17 {
-        world.set(x, 7, 11, Some(WOOD));
-        world.set(x, 7, 12, Some(WOOD));
+    // Cat Noir voxel, ojos/campana dorados y baston metalico.
+    for &(x, y, z) in &[
+        (20, 7, 18),
+        (22, 7, 18),
+        (20, 8, 18),
+        (22, 8, 18),
+        (20, 9, 18),
+        (21, 9, 18),
+        (22, 9, 18),
+        (20, 10, 18),
+        (21, 10, 18),
+        (22, 10, 18),
+        (19, 10, 18),
+        (23, 10, 18),
+        (20, 11, 18),
+        (21, 11, 18),
+        (22, 11, 18),
+        (20, 12, 18),
+        (22, 12, 18),
+    ] {
+        world.set(x, y, z, Some(CAT_NOIR));
+    }
+    world.set(21, 10, 17, Some(GOLD_LIGHT));
+    for z in 12..=20 {
+        world.set(23, 9, z, Some(METAL));
     }
 
+    // Chimeneas de ladrillo y luces de la azotea.
+    fill_box(&mut world, (9, 7, 8), (10, 10, 9), BRICK);
+    fill_box(&mut world, (21, 7, 8), (22, 9, 9), BRICK);
+    world.set(9, 11, 8, Some(GOLD_LIGHT));
+    world.set(22, 10, 8, Some(GOLD_LIGHT));
+
+    // Torre Eiffel estilizada al fondo. Se despeja el volumen para que su
+    // silueta sea legible desde cualquier angulo de la camara.
+    clear_box(&mut world, (2, 2, 23), (9, 23, 30));
+    for y in 2..=6 {
+        for &(x, z) in &[(3, 24), (7, 24), (3, 28), (7, 28)] {
+            world.set(x, y, z, Some(METAL));
+        }
+    }
+    for y in 7..=10 {
+        for &(x, z) in &[(4, 25), (6, 25), (4, 27), (6, 27)] {
+            world.set(x, y, z, Some(METAL));
+        }
+    }
+    for x in 3..=7 {
+        world.set(x, 6, 24, Some(METAL));
+        world.set(x, 6, 28, Some(METAL));
+    }
+    for z in 24..=28 {
+        world.set(3, 6, z, Some(METAL));
+        world.set(7, 6, z, Some(METAL));
+    }
+    for x in 4..=6 {
+        world.set(x, 10, 26, Some(METAL));
+    }
+    for z in 25..=27 {
+        world.set(5, 10, z, Some(METAL));
+    }
+    for y in 11..=20 {
+        world.set(5, y, 26, Some(METAL));
+        if y % 3 == 0 {
+            world.set(5, y, 25, Some(GOLD_LIGHT));
+            world.set(5, y, 27, Some(GOLD_LIGHT));
+        }
+    }
+    world.set(5, 21, 26, Some(GOLD_LIGHT));
+
     world
+}
+
+fn fill_box(
+    world: &mut VoxelWorld,
+    min: (i32, i32, i32),
+    max: (i32, i32, i32),
+    material: usize,
+) {
+    for x in min.0..=max.0 {
+        for y in min.1..=max.1 {
+            for z in min.2..=max.2 {
+                world.set(x, y, z, Some(material));
+            }
+        }
+    }
+}
+
+fn clear_box(world: &mut VoxelWorld, min: (i32, i32, i32), max: (i32, i32, i32)) {
+    for x in min.0..=max.0 {
+        for y in min.1..=max.1 {
+            for z in min.2..=max.2 {
+                world.set(x, y, z, None);
+            }
+        }
+    }
 }
 
 fn fbm(mut x: f32, mut z: f32, seed: u32) -> f32 {
@@ -390,10 +544,10 @@ mod tests {
     #[test]
     fn dda_returns_the_nearest_voxel_surface() {
         let mut world = VoxelWorld::new(4, 4, 4);
-        world.set(2, 1, 1, Some(STONE));
+        world.set(2, 1, 1, Some(PARIS_STONE));
         let ray = Ray::new(Vec3::new(-1.0, 1.5, 1.5), Vec3::new(1.0, 0.0, 0.0));
         let hit = world.intersect(ray, 0.001, 100.0).expect("expected hit");
-        assert_eq!(hit.material_id, STONE);
+        assert_eq!(hit.material_id, PARIS_STONE);
         assert!((hit.distance - 3.0).abs() < 0.001);
     }
 
@@ -408,5 +562,15 @@ mod tests {
         let world = generate_diorama(42);
         assert!(world.width >= 16 && world.depth >= 16);
         assert!(world.occupied_count() > 16 * 16);
+    }
+
+    #[test]
+    fn miraculous_landmarks_are_present() {
+        let world = generate_diorama(2026);
+        assert_eq!(world.get(16, 9, 14), Some(AKUMA));
+        assert_eq!(world.get(14, 9, 12), Some(GLASS));
+        assert_eq!(world.get(11, 10, 12), Some(LADYBUG));
+        assert_eq!(world.get(21, 9, 18), Some(CAT_NOIR));
+        assert_eq!(world.get(5, 18, 26), Some(METAL));
     }
 }

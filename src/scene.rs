@@ -24,17 +24,21 @@ impl Scene {
             materials: default_materials(),
             lights: vec![
                 PointLight {
-                    position: Vec3::new(8.0, 18.0, 7.0),
-                    color: Vec3::new(1.0, 0.88, 0.68),
-                    intensity: 115.0,
+                    position: Vec3::new(10.0, 22.0, 6.0),
+                    color: Vec3::new(0.58, 0.68, 1.0),
+                    intensity: 58.0,
                 },
                 PointLight {
-                    position: Vec3::new(17.5, 10.0, 16.5),
-                    color: Vec3::new(1.0, 0.20, 0.04),
-                    intensity: 42.0,
+                    position: Vec3::new(16.0, 9.5, 14.0),
+                    color: Vec3::new(0.72, 0.18, 1.0),
+                    intensity: 25.0,
+                },
+                PointLight {
+                    position: Vec3::new(5.0, 16.0, 26.0),
+                    color: Vec3::new(1.0, 0.63, 0.20),
+                    intensity: 32.0,
                 },
             ],
         }
     }
 }
-
