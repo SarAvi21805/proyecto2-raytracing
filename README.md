@@ -56,6 +56,14 @@ cargo run --release
 
 La implementación cubre todos los apartados técnicos. Los puntos de complejidad y apariencia son subjetivos, por lo que el vídeo debe hacer visible cada efecto de forma intencional.
 
+## Dependencias externas
+
+La única dependencia directa del proyecto es Raylib. Se utiliza exclusivamente para crear la ventana, procesar entradas y presentar el framebuffer calculado en CPU.
+
+Todos los algoritmos gráficos —intersección DDA, iluminación, sombras, reflexión, refracción, texturas procedurales, mapas normales, emisión, skybox, generación procedural y paralelización— fueron implementados dentro del proyecto utilizando Rust y su biblioteca estándar.
+
+Las dependencias adicionales enumeradas en `Cargo.lock` son dependenciastransitivas requeridas para compilar Raylib y no implementan el ray tracer.
+
 ## Materiales
 
 | Material | Textura | Specular | Transparencia | Reflectividad | Uso |
